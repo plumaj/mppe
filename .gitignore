@@ -1,6 +1,7 @@
 # folders
 data/*
 models/*
+tokens/*
 
 # dotenv
 *.env
