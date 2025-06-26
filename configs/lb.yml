@@ -1,0 +1,14 @@
+exp_name: "lb"
+languages: ["lb"]     # which prefixes to load
+domains:  ["news", "gov", "social", "spoken", "web"]  # optional filter
+w2v:
+  size: 300
+  window: 5
+  min_count: 5
+  sg: 1          # 1 = skip-gram, 0 = CBOW
+  negative: 10
+  epochs: 10
+  workers: 8
+analysis:
+  num_clusters: 20
+  sample_size: 10000       # words to subsample for clustering

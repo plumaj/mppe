@@ -1,0 +1,14 @@
+python==3.11
+spacy==3.8.6
+de-core-news-sm==3.8.0
+fr-core-news-sm==3.8.0
+en-core-news-sm==3.8.0
+stanza
+gensim
+scikit-learn
+pandas
+numpy
+joblib
+umap-learn
+yaml
+matplotlib
