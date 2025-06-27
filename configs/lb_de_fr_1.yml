@@ -1,11 +1,11 @@
-exp_name: "lb_de_fr"
+exp_name: "lb_de_fr_1"
 languages: ["lb", "de", "fr"]     # which prefixes to load
 domains:  ["news", "gov", "social", "spoken", "web"]  # optional filter
 w2v:
   size: 300
   window: 5
   min_count: 5
-  sg: 1          # 1 = skip-gram, 0 = CBOW
+  sg: 0          # 1 = skip-gram, 0 = CBOW
   negative: 10
   epochs: 10
   workers: 8

@@ -6,8 +6,9 @@ tokens/*
 # dotenv
 *.env
 
-
 # Logs and databases
+slurm-*
+*.out
 *.log
 *.sql
 *.sqlite
