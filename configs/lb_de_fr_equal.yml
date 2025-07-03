@@ -1,0 +1,18 @@
+exp_name: "lb_de_fr_equal"
+languages: ["lb", "de", "fr"]
+domains:  ["news", "gov", "social", "spoken", "web"]  # optional filter
+token_limits:
+  lb: 60000000        # keep at most 60 M LB tokens
+  de: 60000000
+  fr: 60000000
+w2v:
+  vector_size: 300
+  window: 5
+  min_count: 5
+  sg: 0          # 1 = skip-gram, 0 = CBOW
+  negative: 10
+  epochs: 10
+  workers: 8
+analysis:
+  num_clusters: 20
+  sample_size: 10000 

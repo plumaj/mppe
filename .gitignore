@@ -2,7 +2,12 @@
 data/*
 models/*
 tokens/*
+
+# files
 cohesion_summary.csv
+
+# sh
+*.sh
 
 # dotenv
 *.env

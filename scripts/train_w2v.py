@@ -4,53 +4,56 @@ import yaml
 import logging
 import argparse
 from pathlib import Path
-
+from collections import defaultdict
 from gensim.models import Word2Vec
 from gensim.models.callbacks import CallbackAny2Vec
 
 
 class EpochLogger(CallbackAny2Vec):
-    """Log loss and epoch progress."""
-    def __init__(self):
-        self.epoch = 0
-
+    def __init__(self): self.epoch = 0
     def on_epoch_begin(self, model):
-        logging.info(f"Epoch {self.epoch} start")
-
+        logging.info("Epoch %d start", self.epoch)
     def on_epoch_end(self, model):
-        loss = model.get_latest_training_loss()
-        logging.info(f"Epoch {self.epoch} end – cumulative loss: {loss:.2f}")
+        logging.info("Epoch %d end – cumulative loss: %.2f",
+                     self.epoch,
+                     model.get_latest_training_loss())
         self.epoch += 1
 
 
-def filter_docs(docs, languages, domains):
-    """
-    Yield sentence lists for the languages / domains requested.
-    Works with either format:
-      {…, "sentences": [[tok1, tok2], ...]}
-      {…, "tokens":    [tok1, tok2, tok3, ...]}
-    """
+def filter_docs(docs, languages, domains, limits):
+    """Yield sentences while respecting per-language token caps."""
+    used_tokens = defaultdict(int)
     for d in docs:
-        if d["lang"] not in languages:
+        lang, dom = d["lang"], d["domain"]
+        if lang not in languages:           # language filter
             continue
-        if domains and d["domain"] not in domains:
+        if domains and dom not in domains:  # domain filter
             continue
 
-        if "sentences" in d:
-            for sent in d["sentences"]:
-                yield sent
-        elif "tokens" in d:
-            yield d["tokens"]
-        else:
-            # skip silently or raise an error if you prefer
-            continue
+        # Choose the iterable of token lists
+        sents = d.get("sentences") or [d.get("tokens", [])]
+
+        for sent in sents:
+            cap = limits.get(lang)          # None == unlimited
+            if cap is not None and used_tokens[lang] >= cap:
+                continue                    # already hit the limit
+            sent_len = len(sent)
+            if cap is not None:
+                if used_tokens[lang] + sent_len > cap:
+                    # trim the sentence to fit exactly into the budget
+                    sent = sent[: cap - used_tokens[lang]]
+                    sent_len = len(sent)
+                used_tokens[lang] += sent_len
+            yield sent
+    logging.info("Token usage per language: %s",
+                 {k: v for k, v in used_tokens.items()})
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--tokens_json", required=True)
-    parser.add_argument("--config", required=True)
-    parser.add_argument("--out_dir", default="models")
+    parser.add_argument("--config",      required=True)
+    parser.add_argument("--out_dir",     default="models")
     args = parser.parse_args()
 
     logging.basicConfig(
@@ -59,39 +62,32 @@ def main():
         datefmt="%H:%M:%S",
     )
 
-    cfg_path = Path(args.config)
-    conf = yaml.safe_load(cfg_path.read_text())
-
-    logging.info("Loaded config %s", cfg_path.name)
+    conf = yaml.safe_load(Path(args.config).read_text())
     logging.info("Experiment name: %s", conf["exp_name"])
 
     docs = json.loads(Path(args.tokens_json).read_text())
-    corpus = list(filter_docs(docs,
-                              conf["languages"],
-                              conf.get("domains")))
+
+    token_limits = conf.get("token_limits", {})      # may be empty
+    corpus = list(
+        filter_docs(docs,
+                    conf["languages"],
+                    conf.get("domains"),
+                    token_limits)
+    )
 
     if not corpus:
-        raise ValueError(
-            "Filtered corpus is empty – check that `languages` / `domains` in "
-            f"{cfg_path.name} match what's in {args.tokens_json}."
-        )
+        raise ValueError("Corpus empty after filtering / throttling.")
 
-    logging.info("Sentences in corpus: %d", len(corpus))
+    logging.info("Total sentences kept: %d", len(corpus))
 
     w2v_params = dict(conf["w2v"])
     w2v_params.setdefault("workers", 4)
     w2v_params.setdefault("compute_loss", True)
 
-    model = Word2Vec(
-        corpus,
-        callbacks=[EpochLogger()],
-        **w2v_params,
-    )
+    model = Word2Vec(corpus, callbacks=[EpochLogger()], **w2v_params)
 
-    out_dir = Path(args.out_dir)
-    out_dir.mkdir(parents=True, exist_ok=True)
-
-    out_path = out_dir / f"{conf['exp_name']}.kv"
+    out_path = Path(args.out_dir) / f"{conf['exp_name']}.kv"
+    out_path.parent.mkdir(parents=True, exist_ok=True)
     model.wv.save(str(out_path))
     logging.info("Model saved to %s", out_path.resolve())
 
