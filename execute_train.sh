@@ -11,4 +11,7 @@
 #SBATCH --export=ALL
 
 conda activate mppe
-srun python runner.py
+#srun python scripts/train_w2v.py --tokens_json data/all_tokens_sents.json --config configs/lb_de_fr_1.yml
+srun python scripts/train_w2v.py --tokens_json data/all_tokens_sents.json --config configs/lb_de.yml
+srun python scripts/train_w2v.py --tokens_json data/all_tokens_sents.json --config configs/lb_fr.yml
+srun python scripts/train_w2v.py --tokens_json data/all_tokens_sents.json --config configs/lb.yml

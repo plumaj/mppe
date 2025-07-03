@@ -1,92 +1,120 @@
-#!/usr/bin/env python
-from __future__ import annotations
+#!/usr/bin/env python3
+"""
+preprocess.py  —  streaming, line-wise sentences with verbose logging
+"""
+import argparse, json, logging, sys
 from pathlib import Path
-import argparse, json
 import spacy
 from spacy.lang.lb import Luxembourgish
 
-LANG_MAP = {"lb": "lb", "de": "de_core_news_sm", "fr": "fr_core_news_sm"}
+LANG_MODEL = {
+    "lb": "lb",                     # handled separately
+    "de": "de_core_news_sm",
+    "fr": "fr_core_news_sm",
+}
 
-
-def make_nlp(lang: str):
-    """Tokenizer-only pipeline for a given language."""
+# -------------------------------------------------------------------- #
+#  spaCy loader (cached)
+# -------------------------------------------------------------------- #
+def get_nlp(lang: str, cache: dict[str, spacy.Language]) -> spacy.Language:
+    if lang in cache:
+        return cache[lang]
     if lang == "lb":
         nlp = Luxembourgish()
-        nlp.add_pipe("sentencizer")
     else:
         nlp = spacy.load(
-            LANG_MAP.get(lang, "xx_ent_wiki_sm"),
-            disable=[
-                "parser",
-                "ner",
-                "tagger",
-                "attribute_ruler",
-                "lemmatizer",
-            ],
+            LANG_MODEL.get(lang, "xx_ent_wiki_sm"),
+            disable=["ner", "tagger", "lemmatizer"],
         )
+    cache[lang] = nlp
+    logging.debug("Loaded spaCy model for %s", lang)
     return nlp
 
 
-def tokens_from_file(path: Path, nlp, *, batch_size: int = 1000):
-    """
-    Yield lowercase alphabetic tokens from *one text file*.
-    spaCy sees at most `batch_size` lines per call, so memory stays tiny.
-    """
-    with path.open() as f:
-        for doc in nlp.pipe(f, batch_size=batch_size):
-            for tok in doc:
-                if tok.is_alpha:
-                    yield tok.text
+# -------------------------------------------------------------------- #
+#  per-file processing (one line == one sentence)
+# -------------------------------------------------------------------- #
+def process_file(fp: Path, nlp: spacy.Language, log_sentences: bool):
+    sentences = []
+    with fp.open(encoding="utf-8", errors="ignore") as fh:
+        for line in fh:
+            line = line.strip()
+            if not line:
+                continue
+            doc = nlp(line)
+            toks = [tok.text for tok in doc if tok.is_alpha]
+            if toks:
+                sentences.append(toks)
+    if log_sentences:
+        logging.debug("  %s → %d sentences", fp.name, len(sentences))
+
+    lang, domain, *_ = fp.stem.split("_", 2)
+    return {"lang": lang, "domain": domain, "sentences": sentences}
 
 
-def parse_fname(fname: str):
-    lang, domain, *_ = Path(fname).stem.split("_")
-    return lang, domain
-
-
+# -------------------------------------------------------------------- #
+#  main driver
+# -------------------------------------------------------------------- #
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument(
-        "--data_dir",
-        type=Path,
-        default=Path("data"),
-        help="directory full of *.txt files",
-    )
-    ap.add_argument(
-        "--out",
-        type=Path,
-        required=True,
-        help="output JSON file (give a filename, NOT a dir!)",
-    )
+    ap.add_argument("--data_dir",  required=True)
+    ap.add_argument("--out_json",  required=True)
+    ap.add_argument("--log_every", type=int, default=1,
+                    help="progress line every N files")
+    ap.add_argument("--sentence_log", action="store_true",
+                    help="log each file's sentence count (verbose)")
+    ap.add_argument("--loglevel", default="INFO", choices=["DEBUG", "INFO", "WARNING"])
     args = ap.parse_args()
 
-    files = sorted(args.data_dir.glob("*.txt"))
+    # ---------- logging ----------
+    logging.basicConfig(
+        level=getattr(logging, args.loglevel),
+        format="%(asctime)s [%(levelname)s] %(message)s",
+        datefmt="%H:%M:%S",
+        force=True,
+    )
+
+    files = sorted(Path(args.data_dir).glob("*.txt"))
     if not files:
-        raise SystemExit(f"No .txt files in {args.data_dir}")
+        logging.error("No .txt files found in %s", args.data_dir)
+        sys.exit(1)
 
-    # one spaCy object per language, reused across files
-    nlp_cache: dict[str, spacy.language.Language] = {}
+    logging.info("Starting preprocessing")
+    logging.info("  data dir : %s", args.data_dir)
+    logging.info("  out file : %s", args.out_json)
+    logging.info("  files    : %d", len(files))
+    logging.info("  log freq : every %d files", args.log_every)
 
-    with args.out.open("w") as out_f:
-        out_f.write("[\n")
-        first = True
+    nlp_cache: dict[str, spacy.Language] = {}
+    out_path = Path(args.out_json)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
 
-        for path in files:
-            print(f"Processing {path.name}")
-            lang, domain = parse_fname(path.name)
-            nlp = nlp_cache.setdefault(lang, make_nlp(lang))
+    processed, total_sent = 0, 0
+    first_doc = True
 
-            tokens = list(tokens_from_file(path, nlp))
-            doc_obj = {"lang": lang, "domain": domain, "tokens": tokens}
+    with out_path.open("w", encoding="utf-8") as out:
+        out.write("[\n")
+        for idx, fp in enumerate(files, 1):
+            lang = fp.stem.split("_", 1)[0]
+            record = process_file(fp,
+                                  get_nlp(lang, nlp_cache),
+                                  args.sentence_log)
+            total_sent += len(record["sentences"])
 
-            if not first:
-                out_f.write(",\n")
-            json.dump(doc_obj, out_f)
-            first = False
+            if not first_doc:
+                out.write(",\n")
+            first_doc = False
+            json.dump(record, out, ensure_ascii=False, indent=2)
 
-        out_f.write("\n]\n")
+            processed += 1
+            if processed % args.log_every == 0:
+                logging.info("processed %d / %d files (sentences so far: %d)",
+                             processed, len(files), total_sent)
 
-    print(f"Processed {len(files)} files → {args.out}")
+        out.write("\n]\n")
+
+    logging.info("Finished: %d files → %d sentences", processed, total_sent)
+    logging.info("Output written to %s", out_path.resolve())
 
 
 if __name__ == "__main__":

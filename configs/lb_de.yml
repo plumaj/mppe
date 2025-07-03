@@ -2,7 +2,7 @@ exp_name: "lb_de"
 languages: ["lb", "de"]     # which prefixes to load
 domains:  ["news", "gov", "social", "spoken", "web"]  # optional filter
 w2v:
-  size: 300
+  vector_size: 300
   window: 5
   min_count: 5
   sg: 1          # 1 = skip-gram, 0 = CBOW

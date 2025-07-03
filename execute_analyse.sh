@@ -11,4 +11,4 @@
 #SBATCH --export=ALL
 
 conda activate mppe
-srun python scripts/preprocess.py --data_dir PATH/all --out data/all_tokens_sents.json
+srun python scripts/analyse_clusters.py --models models/*.kv
