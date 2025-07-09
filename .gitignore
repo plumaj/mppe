@@ -5,6 +5,7 @@ tokens/*
 
 # files
 cohesion_summary.csv
+cohesion_summary*
 
 # sh
 *.sh

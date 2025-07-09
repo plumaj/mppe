@@ -40,3 +40,5 @@ if __name__ == "__main__":
 # silhoutte + is better
 # davies_bouldin - is better
 # python scripts/analyse_clusters.py models/*.kv
+
+# analyse lexical richness, analyse language diversity in clusters? (check vocab for the 3 langs in lexicon, matches? overlap?)
