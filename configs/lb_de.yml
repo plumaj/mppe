@@ -1,6 +1,6 @@
 exp_name: "lb_de"
 languages: ["lb", "de"]     # which prefixes to load
-domains:  ["news", "gov", "social", "spoken", "web"]  # optional filter
+domains:  ["news", "gov", "social", "spoken", "web", "lex"]  # optional filter
 w2v:
   vector_size: 300
   window: 5

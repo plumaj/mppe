@@ -1,6 +1,6 @@
-exp_name: "lb_up_245"
+exp_name: "lb_us245var"
 languages: ["lb"]     # which prefixes to load
-domains:  ["news", "gov", "social", "spoken", "web"]  # optional filter
+domains:  ["news", "gov", "social", "spoken", "web", "lex"]  # optional filter
 token_targets:
   lb: 245000000 
 w2v:

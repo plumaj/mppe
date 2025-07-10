@@ -1,6 +1,6 @@
-exp_name: "lb_de_fr_equal"
+exp_name: "lb_de_fr_ds180lb"
 languages: ["lb", "de", "fr"]
-domains:  ["news", "gov", "social", "spoken", "web"]  # optional filter
+domains:  ["news", "gov", "social", "spoken", "web", "lex"]  # optional filter
 token_limits:
   lb: 60000000        # keep at most 60 M LB tokens
   de: 60000000
